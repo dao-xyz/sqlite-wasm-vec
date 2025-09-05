@@ -3,9 +3,6 @@ name: prebuilt
 on:
   release:
     types: [published]
-  workflow_run:
-    workflows: [create-release]
-    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
@@ -19,6 +16,16 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-13, macos-14, windows-2022]
         arch: [x64, arm64]
+        exclude:
+          # Avoid duplicate uploads and unsupported combos
+          - os: ubuntu-22.04
+            arch: arm64    # built in prebuild-linux-arm
+          - os: macos-13
+            arch: arm64    # macOS 13 runner is x64
+          - os: macos-14
+            arch: x64      # macOS 14 runner is arm64
+          - os: windows-2022
+            arch: arm64    # no Windows arm64 runner
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
