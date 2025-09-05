@@ -1,5 +1,5 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface InitNativeOptions { database?: string; loadExtension?: string | false }
 export interface InitNativeResult { db: any; Database: any; version: { libVersion: string; vecVersion?: string } }

@@ -1,7 +1,7 @@
 // Node-only unified entry which uses better-sqlite3 and auto-loads the sqlite-vec extension.
 import type { Database, Statement } from './unified';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 function detectLibc(): 'gnu' | 'musl' {
   try {
