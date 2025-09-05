@@ -1,0 +1,53 @@
+name: create-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (defaults to package.json)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Resolve tag
+        id: ver
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VER="${{ github.event.inputs.version }}"
+          else
+            VER=$(node -p "require('./package.json').version")
+          fi
+          TAG="v${VER#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Resolved tag: $TAG"
+      - name: Create tag (if missing)
+        run: |
+          TAG='${{ steps.ver.outputs.tag }}'
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git config user.name github-actions
+            git config user.email github-actions@github.com
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG='${{ steps.ver.outputs.tag }}'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
+
