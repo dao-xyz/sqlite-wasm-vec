@@ -35,10 +35,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG='${{ steps.ver.outputs.tag }}'
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG already exists"
           else
-            gh release create "$TAG" --title "$TAG" --notes "Automated prebuilt assets"
+            gh release create "$TAG" --title "$TAG" --notes "Automated prebuilt assets" -R "$GITHUB_REPOSITORY"
           fi
 
   build-matrix:
@@ -114,11 +114,11 @@ jobs:
           if [[ "${{ matrix.os }}" == windows* ]]; then TRIPLE=win32-$ARCH; fi
           NAME=sqlite-vec-$TRIPLE.$EXT
           echo "Uploading $NAME"
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "${{ steps.find_art.outputs.artifact }}#${NAME}" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "${{ steps.find_art.outputs.artifact }}#${NAME}" --clobber -R "$GITHUB_REPOSITORY"
           # Create checksum file for the uploaded asset name
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "${{ steps.find_art.outputs.artifact }}")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
 
   prebuild-alpine:
     name: Prebuild on alpine
@@ -158,10 +158,10 @@ jobs:
           [ -n "$ART" ] || (echo "No artifact" && exit 1)
           NAME=sqlite-vec-linux-x64-musl.so
           echo "Uploading $NAME"
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$ART#$NAME" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$ART#$NAME" --clobber -R "$GITHUB_REPOSITORY"
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "$ART")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
 
   prebuild-alpine-arm:
     name: Prebuild on alpine (arm)
@@ -199,10 +199,10 @@ jobs:
           for f in sqlite-vec/dist/*.so sqlite-vec/sqlite-vec*.so; do [ -f "$f" ] && ART="$f" && break; done
           if [ "${{ matrix.arch }}" = "arm/v7" ]; then ARCH=armv7; else ARCH=arm64; fi
           NAME=sqlite-vec-linux-$ARCH-musl.so
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$ART#$NAME" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$ART#$NAME" --clobber -R "$GITHUB_REPOSITORY"
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "$ART")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
 
   prebuild-linux-arm:
     name: Prebuild on Linux (arm64)
@@ -227,9 +227,9 @@ jobs:
           ART=""
           for f in sqlite-vec/dist/*.so sqlite-vec/sqlite-vec*.so; do [ -f "$f" ] && ART="$f" && break; done
           NAME=sqlite-vec-linux-arm64-gnu.so
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$ART#$NAME" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$ART#$NAME" --clobber -R "$GITHUB_REPOSITORY"
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "$ART")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
-          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber
+          gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
 permissions:
   contents: write
