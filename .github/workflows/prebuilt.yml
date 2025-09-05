@@ -51,7 +51,12 @@ jobs:
         run: echo 'Using Xcode toolchain'
       - name: Install toolchain (Windows)
         if: startsWith(matrix.os, 'windows')
-        run: choco install -y make
+        shell: bash
+        run: |
+          choco install -y make mingw
+          # Ensure MinGW is on PATH for subsequent bash steps
+          echo "C:/tools/mingw64/bin" >> $GITHUB_PATH
+          echo "C:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin" >> $GITHUB_PATH
       - name: Clone sqlite-vec
         run: git clone --depth 1 https://github.com/asg017/sqlite-vec.git
       - name: Vendor and build loadable
@@ -59,6 +64,8 @@ jobs:
         run: |
           set -euxo pipefail
           pushd sqlite-vec
+          # Use gcc on Windows where 'cc' may be missing
+          if [ "$RUNNER_OS" = "Windows" ]; then export CC=gcc; fi
           if [ -x ./scripts/vendor.sh ]; then ./scripts/vendor.sh; fi
           make loadable
           popd
