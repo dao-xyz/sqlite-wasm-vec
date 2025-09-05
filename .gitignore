@@ -5,6 +5,10 @@
 /out-tsc
 /bazel-out
 
+# Tests
+test-results
+
+
 # Node
 /node_modules
 npm-debug.log
