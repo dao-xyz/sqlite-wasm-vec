@@ -127,7 +127,7 @@ jobs:
     container: node:20-alpine
     steps:
       - uses: actions/checkout@v4
-      - run: apk add build-base git python3 py3-setuptools bash gettext curl unzip --update-cache
+      - run: apk add build-base git python3 py3-setuptools bash gettext curl unzip github-cli --update-cache
       - run: git clone --depth 1 https://github.com/asg017/sqlite-vec.git
       - name: Patch sqlite-vec for Alpine (musl)
         shell: bash
@@ -215,7 +215,7 @@ jobs:
         run: |
           docker run --rm -v $PWD:/w --entrypoint /bin/sh --platform linux/arm64 node:20-bullseye -c '
           set -eux;
-          apt-get update && apt-get install -y git make g++ gcc;
+          apt-get update && apt-get install -y git make g++ gcc gettext-base;
           cd /w; git clone --depth 1 https://github.com/asg017/sqlite-vec.git;
           cd sqlite-vec; [ -x ./scripts/vendor.sh ] && ./scripts/vendor.sh || true; make loadable;
           '
