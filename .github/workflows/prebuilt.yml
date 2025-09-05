@@ -3,6 +3,10 @@ name: prebuilt
 on:
   release:
     types: [published]
+  workflow_run:
+    workflows: [create-release]
+    types: [completed]
+  workflow_dispatch:
 
 jobs:
   build-matrix:
@@ -14,6 +18,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve tag
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG='${{ github.event.release.tag_name }}'
+          else
+            VER=$(node -p "require('./package.json').version")
+            TAG="v${VER#v}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Resolved tag: $TAG"
       - name: Install toolchain (Linux)
         if: startsWith(matrix.os, 'ubuntu')
         run: sudo apt-get update && sudo apt-get install -y build-essential git make
@@ -57,10 +73,10 @@ jobs:
           if [[ "${{ matrix.os }}" == windows* ]]; then TRIPLE=win32-$ARCH; fi
           NAME=sqlite-vec-$TRIPLE.$EXT
           echo "Uploading $NAME"
-          gh release upload "${{ github.event.release.tag_name }}" "${{ steps.find_art.outputs.artifact }}#${NAME}" --clobber
+          gh release upload "${{ steps.ver.outputs.tag }}" "${{ steps.find_art.outputs.artifact }}#${NAME}" --clobber
           # Create checksum file
           node -e "const fs=require('fs');const crypto=require('crypto');const d=fs.readFileSync(process.argv[1]);const h=crypto.createHash('sha256').update(d).digest('hex');fs.writeFileSync(process.argv[1]+'.sha256', h+'  '+process.argv[2]);" "$NAME" "$NAME"
-          gh release upload "${{ github.event.release.tag_name }}" "$NAME.sha256" --clobber
+          gh release upload "${{ steps.ver.outputs.tag }}" "$NAME.sha256" --clobber
 
   prebuild-alpine:
     if: ${{ github.event_name == 'release' }}
@@ -84,9 +100,9 @@ jobs:
           [ -n "$ART" ] || (echo "No artifact" && exit 1)
           NAME=sqlite-vec-linux-x64-musl.so
           echo "Uploading $NAME"
-          gh release upload "${{ github.event.release.tag_name }}" "$ART#$NAME" --clobber
+          gh release upload "${{ needs.build-matrix.outputs.tag || steps.ver.outputs.tag }}" "$ART#$NAME" --clobber
           node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);const h=c.createHash('sha256').update(d).digest('hex');fs.writeFileSync(process.argv[1]+'.sha256', h+'  '+process.argv[2]);" "$NAME" "$NAME"
-          gh release upload "${{ github.event.release.tag_name }}" "$NAME.sha256" --clobber
+          gh release upload "${{ needs.build-matrix.outputs.tag || steps.ver.outputs.tag }}" "$NAME.sha256" --clobber
 
   prebuild-alpine-arm:
     if: ${{ github.event_name == 'release' }}
@@ -143,6 +159,6 @@ jobs:
           set -e
           ART=$(ls sqlite-vec/sqlite-vec*.so)
           NAME=sqlite-vec-linux-arm64-gnu.so
-          gh release upload "${{ github.event.release.tag_name }}" "$ART#$NAME" --clobber
+          gh release upload "${{ needs.build-matrix.outputs.tag || steps.ver.outputs.tag }}" "$ART#$NAME" --clobber
           node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);const h=c.createHash('sha256').update(d).digest('hex');fs.writeFileSync(process.argv[1]+'.sha256', h+'  '+process.argv[2]);" "$NAME" "$NAME"
-          gh release upload "${{ github.event.release.tag_name }}" "$NAME.sha256" --clobber
+          gh release upload "${{ needs.build-matrix.outputs.tag || steps.ver.outputs.tag }}" "$NAME.sha256" --clobber

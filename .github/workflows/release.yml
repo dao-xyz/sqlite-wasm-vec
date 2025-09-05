@@ -29,6 +29,21 @@ jobs:
           TAG="v${VER#v}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Resolved tag: $TAG"
+      - name: Bump package.json to resolved version
+        run: |
+          VER='${{ steps.ver.outputs.tag }}'
+          VER="${VER#v}"
+          CUR=$(node -p "require('./package.json').version")
+          if [ "$CUR" != "$VER" ]; then
+            echo "Bumping package.json from $CUR to $VER"
+            npm version "$VER" --no-git-tag-version
+            git config user.name github-actions
+            git config user.email github-actions@github.com
+            git commit -am "chore(release): bump version to $VER"
+            git push
+          else
+            echo "package.json already at $VER"
+          fi
       - name: Create tag (if missing)
         run: |
           TAG='${{ steps.ver.outputs.tag }}'
@@ -50,4 +65,3 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --generate-notes
           fi
-
