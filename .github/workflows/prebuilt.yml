@@ -8,9 +8,13 @@ on:
       tag:
         description: "Release tag to upload assets to (e.g., v3.51.0-build1). Leave blank to use package.json"
         required: false
+  workflow_run:
+    workflows: ["create-release"]
+    types: [completed]
 
 jobs:
   ensure-release:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.ver.outputs.tag }}
