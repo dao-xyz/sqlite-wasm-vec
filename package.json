@@ -1,6 +1,6 @@
 {
   "name": "@dao-xyz/sqlite3-vec",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Unified SQLite + sqlite-vec across browser (Wasm) and Node (native).",
   "keywords": [
     "sqlite",
