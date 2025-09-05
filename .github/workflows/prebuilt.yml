@@ -65,9 +65,9 @@ jobs:
           set -euxo pipefail
           pushd sqlite-vec
           # Use gcc on Windows where 'cc' may be missing
-          if [ "$RUNNER_OS" = "Windows" ]; then export CC=gcc; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then MAKE_CC="CC=gcc"; else MAKE_CC=""; fi
           if [ -x ./scripts/vendor.sh ]; then ./scripts/vendor.sh; fi
-          make loadable
+          make loadable ${MAKE_CC}
           popd
       - name: Find artifact
         id: find_art
