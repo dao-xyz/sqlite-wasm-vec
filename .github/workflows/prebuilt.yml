@@ -1,0 +1,148 @@
+name: prebuilt
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-13, macos-14, windows-2022]
+        arch: [x64, arm64]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install -y build-essential git make
+      - name: Install toolchain (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: echo 'Using Xcode toolchain'
+      - name: Install toolchain (Windows)
+        if: startsWith(matrix.os, 'windows')
+        run: choco install -y make
+      - name: Clone sqlite-vec
+        run: git clone --depth 1 https://github.com/asg017/sqlite-vec.git
+      - name: Vendor and build loadable
+        shell: bash
+        run: |
+          set -euxo pipefail
+          pushd sqlite-vec
+          if [ -x ./scripts/vendor.sh ]; then ./scripts/vendor.sh; fi
+          make loadable
+          popd
+      - name: Find artifact
+        id: find_art
+        shell: bash
+        run: |
+          set -e
+          ART=""
+          for f in sqlite-vec/sqlite-vec.*.so sqlite-vec/sqlite-vec.*.dylib sqlite-vec/sqlite-vec.*.dll sqlite-vec/sqlite-vec.so sqlite-vec/sqlite-vec.dylib sqlite-vec/sqlite-vec.dll; do
+            if [ -f "$f" ]; then ART="$f"; break; fi
+          done
+          if [ -z "$ART" ]; then echo "::error::No sqlite-vec artifact found"; exit 1; fi
+          echo "artifact=$ART" >> $GITHUB_OUTPUT
+      - name: Upload release asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          if [ "${{ matrix.os }}" = "windows-2022" ]; then EXT=dll; elif [[ "${{ matrix.os }}" == macos* ]]; then EXT=dylib; else EXT=so; fi
+          if [ "${{ matrix.arch }}" = "arm64" ]; then ARCH=arm64; else ARCH=x64; fi
+          if [[ "${{ matrix.os }}" == ubuntu* ]]; then LIBC=gnu; TRIPLE=linux-$ARCH-$LIBC; fi
+          if [[ "${{ matrix.os }}" == macos* ]]; then TRIPLE=darwin-$ARCH; fi
+          if [[ "${{ matrix.os }}" == windows* ]]; then TRIPLE=win32-$ARCH; fi
+          NAME=sqlite-vec-$TRIPLE.$EXT
+          echo "Uploading $NAME"
+          gh release upload "${{ github.event.release.tag_name }}" "${{ steps.find_art.outputs.artifact }}#${NAME}" --clobber
+          # Create checksum file
+          node -e "const fs=require('fs');const crypto=require('crypto');const d=fs.readFileSync(process.argv[1]);const h=crypto.createHash('sha256').update(d).digest('hex');fs.writeFileSync(process.argv[1]+'.sha256', h+'  '+process.argv[2]);" "$NAME" "$NAME"
+          gh release upload "${{ github.event.release.tag_name }}" "$NAME.sha256" --clobber
+
+  prebuild-alpine:
+    if: ${{ github.event_name == 'release' }}
+    name: Prebuild on alpine
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    container: node:20-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - run: apk add build-base git python3 py3-setuptools --update-cache
+      - run: git clone --depth 1 https://github.com/asg017/sqlite-vec.git
+      - run: |
+          set -eux; cd sqlite-vec; [ -x ./scripts/vendor.sh ] && ./scripts/vendor.sh || true; make loadable
+      - name: Upload release asset (alpine x64)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: sh
+        run: |
+          set -e
+          ART=$(ls sqlite-vec/sqlite-vec*.so || true)
+          [ -n "$ART" ] || (echo "No artifact" && exit 1)
+          NAME=sqlite-vec-linux-x64-musl.so
+          echo "Uploading $NAME"
+          gh release upload "${{ github.event.release.tag_name }}" "$ART#$NAME" --clobber
+          node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);const h=c.createHash('sha256').update(d).digest('hex');fs.writeFileSync(process.argv[1]+'.sha256', h+'  '+process.argv[2]);" "$NAME" "$NAME"
+          gh release upload "${{ github.event.release.tag_name }}" "$NAME.sha256" --clobber
+
+  prebuild-alpine-arm:
+    if: ${{ github.event_name == 'release' }}
+    name: Prebuild on alpine (arm)
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm/v7, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - name: Build (alpine ${{ matrix.arch }})
+        run: |
+          docker run --rm -v $PWD:/w --entrypoint /bin/sh --platform linux/${{ matrix.arch }} node:20-alpine -c '
+            set -eux;
+            apk add build-base git python3 py3-setuptools --update-cache;
+            cd /w; git clone --depth 1 https://github.com/asg017/sqlite-vec.git;
+            cd sqlite-vec; [ -x ./scripts/vendor.sh ] && ./scripts/vendor.sh || true; make loadable;
+          '
+      - name: Upload release asset (alpine arm)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          ART=$(ls sqlite-vec/sqlite-vec*.so)
+          if [ "${{ matrix.arch }}" = "arm/v7" ]; then ARCH=armv7; else ARCH=arm64; fi
+          NAME=sqlite-vec-linux-$ARCH-musl.so
+          gh release upload "${{ github.event.release.tag_name }}" "$ART#$NAME" --clobber
+          node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);const h=c.createHash('sha256').update(d).digest('hex');fs.writeFileSync(process.argv[1]+'.sha256', h+'  '+process.argv[2]);" "$NAME" "$NAME"
+          gh release upload "${{ github.event.release.tag_name }}" "$NAME.sha256" --clobber
+
+  prebuild-linux-arm:
+    if: ${{ github.event_name == 'release' }}
+    name: Prebuild on Linux (arm64)
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - name: Build manylinux (arm64)
+        run: |
+          docker run --rm -v $PWD:/w --entrypoint /bin/sh --platform linux/arm64 node:20-bullseye -c '
+          set -eux;
+          apt-get update && apt-get install -y git make g++ gcc;
+          cd /w; git clone --depth 1 https://github.com/asg017/sqlite-vec.git;
+          cd sqlite-vec; [ -x ./scripts/vendor.sh ] && ./scripts/vendor.sh || true; make loadable;
+          '
+      - name: Upload release asset (linux arm64 gnu)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          ART=$(ls sqlite-vec/sqlite-vec*.so)
+          NAME=sqlite-vec-linux-arm64-gnu.so
+          gh release upload "${{ github.event.release.tag_name }}" "$ART#$NAME" --clobber
+          node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);const h=c.createHash('sha256').update(d).digest('hex');fs.writeFileSync(process.argv[1]+'.sha256', h+'  '+process.argv[2]);" "$NAME" "$NAME"
+          gh release upload "${{ github.event.release.tag_name }}" "$NAME.sha256" --clobber

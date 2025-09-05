@@ -1,62 +1,80 @@
 #!/usr/bin/env node
 import fs from 'fs';
-import fetch from 'node-fetch';
-import decompress from 'decompress';
+import path from 'path';
+import { execSync } from 'child_process';
 
-async function getSqliteWasmDownloadLink() {
-  const response = await fetch('https://sqlite.org/download.html');
-  const html = await response.text();
-  const sqliteWasmLink =
-    'https://sqlite.org/' +
-    html
-      .replace(
-        /^.*?<!-- Download product data for scripts to read(.*?)-->.*?$/gms,
-        '$1',
-      )
-      .split(/\n/)
-      .filter((row) => /sqlite-wasm/.test(row))[0]
-      .split(/,/)[2];
-  console.log(`Found SQLite Wasm download link: ${sqliteWasmLink}`);
-  return sqliteWasmLink;
-}
+// Resolve dirname for ES modules
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
-async function downloadAndUnzipSqliteWasm(sqliteWasmDownloadLink) {
-  if (!sqliteWasmDownloadLink) {
-    throw new Error('Unable to find SQLite Wasm download link');
-  }
-  console.log('Downloading and unzipping SQLite Wasm...');
-  const response = await fetch(sqliteWasmDownloadLink);
-  if (!response.ok || response.status !== 200) {
-    throw new Error(
-      `Unable to download SQLite Wasm from ${sqliteWasmDownloadLink}`,
-    );
-  }
-  const buffer = await response.arrayBuffer();
-  fs.writeFileSync('sqlite-wasm.zip', Buffer.from(buffer));
-  const files = await decompress('sqlite-wasm.zip', 'sqlite-wasm', {
-    strip: 1,
-    filter: (file) =>
-      /jswasm/.test(file.path) && /(\.mjs|\.wasm|\.js)$/.test(file.path),
-  });
-  console.log(
-    `Downloaded and unzipped:\n${files
-      .map((file) => (/\//.test(file.path) ? '‣ ' + file.path + '\n' : ''))
-      .join('')}`,
-  );
-  fs.rmSync('sqlite-wasm.zip');
-}
+// Paths
+const sqliteRepoDir = path.resolve(__dirname, '../../sqlite');
+const srcDir = path.resolve(sqliteRepoDir, 'ext/wasm/jswasm');
+const destDir = path.resolve(process.cwd(), 'sqlite-wasm/jswasm');
 
-async function main() {
+// Helper to check if jswasm payload looks valid
+const hasValidPayload = (dir) =>
+  fs.existsSync(path.join(dir, 'sqlite3.wasm')) &&
+  fs.existsSync(path.join(dir, 'sqlite3.mjs'));
+
+// If the external sqlite repo is present, try to build and copy from there.
+if (fs.existsSync(sqliteRepoDir)) {
+  console.log('Found ../sqlite repo. Building wasm payload with sqlite-vec…');
   try {
-    const sqliteWasmLink = await getSqliteWasmDownloadLink();
-    await downloadAndUnzipSqliteWasm(sqliteWasmLink);
-    fs.copyFileSync(
-      './node_modules/module-workers-polyfill/module-workers-polyfill.min.js',
-      './demo/module-workers-polyfill.min.js',
+    execSync(
+      `set -e
+       cd ../sqlite
+       ./configure --enable-all
+       make sqlite3.c
+       cd ext/wasm
+       make -j8 \
+          EXTRA_SRC="sqlite-vec.c" \
+          EXTRA_CFLAGS="-DSQLITE_VEC_STATIC -DSQLITE_VEC_OMIT_FS"`,
+      { stdio: 'inherit' }
     );
-  } catch (err) {
-    console.error(err.name, err.message);
+  } catch (e) {
+    console.warn(
+      'Build from ../sqlite failed or is not permitted in this environment.\n',
+      String(e && e.message ? e.message : e)
+    );
+    if (hasValidPayload(destDir)) {
+      console.log('Falling back to existing prebuilt payload at', destDir, '✅');
+      process.exit(0);
+    }
+    console.error('No prebuilt payload to fall back to.');
+    process.exit(1);
+  }
+
+  if (!fs.existsSync(srcDir)) {
+    console.error('Build succeeded but jswasm directory is missing:', srcDir);
+    process.exit(1);
+  }
+
+  console.log('Copying jswasm payload from', srcDir, 'to', destDir);
+  fs.rmSync(destDir, { recursive: true, force: true });
+  fs.cpSync(srcDir, destDir, {
+    recursive: true,
+    filter: (src) => {
+      if (fs.lstatSync(src).isDirectory()) return true; // keep dirs
+      return /\.(mjs|js|wasm)$/.test(src); // copy only needed files
+    },
+  });
+  console.log('Built and copied jswasm payload ✅');
+} else {
+  // No external repo. If a payload already exists in this package, keep it.
+  if (hasValidPayload(destDir)) {
+    console.log(
+      'No ../sqlite repo. Using existing prebuilt payload at',
+      destDir,
+      '✅'
+    );
+  } else {
+    console.error(
+      'No ../sqlite repo found and no prebuilt payload present at',
+      destDir,
+      '\nPlease either: \n' +
+        '  - Clone and prepare ../sqlite with sqlite-vec, then run `npm run build`, or\n' +
+        '  - Add a prebuilt jswasm payload to sqlite-wasm/jswasm.'
+    );
+    process.exit(1);
   }
 }
-
-main();

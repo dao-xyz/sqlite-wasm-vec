@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>sqlite-wasm-vec test</title>
+<body>
+<script type="module">
+  import sqlite3InitModule from '/index.mjs';
+  const body = document.body;
+  try {
+    const sqlite3 = await sqlite3InitModule({ print: ()=>{}, printErr: ()=>{} });
+    const db = new sqlite3.oo1.DB('/t.sqlite3', 'ct');
+
+    // Confirm vec extension is present
+    const stmt = db.prepare('select vec_version() as v');
+    stmt.step();
+    const v = stmt.get({}).v;
+    body.setAttribute('data-vec', String(v || 'unknown'));
+    stmt.finalize();
+
+    // Minimal vector demo: create table, insert vectors, query distance
+    db.exec('CREATE VIRTUAL TABLE v USING vec0(vector float[3])');
+    const ins = db.prepare('INSERT INTO v(rowid,vector) VALUES(?1,?2)');
+    const toVec = () => new Float32Array([
+      Math.random(), Math.random(), Math.random()
+    ]);
+    for (let i = 1; i <= 4; ++i) {
+      ins.bind([i, toVec().buffer]).stepReset();
+    }
+    ins.finalize();
+
+    const probe = toVec();
+    const q = db.prepare('SELECT rowid, vec_distance_l2(vector, ?1) AS d FROM v ORDER BY d LIMIT 2');
+    q.bind([probe.buffer]);
+    let rows = 0;
+    while (q.step()) { q.get({}); rows++; }
+    q.finalize();
+    if (rows === 2) body.setAttribute('data-vec-demo', 'ok');
+
+    db.close();
+  } catch (e) {
+    body.setAttribute('data-error', e && e.message ? e.message : String(e));
+  }
+</script>
+</body>

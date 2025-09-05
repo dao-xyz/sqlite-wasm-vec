@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>sqlite-wasm import-only test</title>
+<body>
+<script type="module">
+  import '/index.mjs';
+  const ok = typeof globalThis.sqlite3Worker1Promiser === 'function';
+  document.body.setAttribute('data-promiser', ok ? 'yes' : 'no');
+  // Also confirm the default export can be imported
+  const m = await import('/index.mjs');
+  document.body.setAttribute('data-default', typeof m.default === 'function' ? 'yes' : 'no');
+  // do not initialize wasm here; this page is import-only
+</script>
+</body>

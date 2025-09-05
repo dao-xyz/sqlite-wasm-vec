@@ -1,7 +1,7 @@
 {
-  "name": "@sqlite.org/sqlite-wasm",
+  "name": "@dao-xyz/sqlite3-vec",
   "version": "3.50.1-build1",
-  "description": "SQLite Wasm conveniently wrapped as an ES Module.",
+  "description": "Unified SQLite + sqlite-vec across browser (Wasm) and Node (native).",
   "keywords": [
     "sqlite",
     "sqlite3",
@@ -11,54 +11,83 @@
     "wasm",
     "esm",
     "opfs",
-    "origin-private-file-system"
+    "origin-private-file-system",
+    "vec",
+    "vector",
+    "vector-search",
+    "sqlite-vec",
+    "vec0"
   ],
-  "main": "index.mjs",
-  "node": "node.mjs",
+  "main": "dist/unified-node.js",
+  "node": "dist/unified-node.js",
   "type": "module",
   "files": [
     "index.d.ts",
     "index.mjs",
-    "node.mjs",
+    "dist/",
+    "src/",
     "sqlite-wasm/"
   ],
-  "types": "index.d.ts",
+  "types": "dist/unified.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/unified.d.ts",
+      "browser": "./dist/unified-browser.js",
+      "node": "./dist/unified-node.js",
+      "import": "./dist/unified-node.js",
+      "main": "./dist/unified-node.js"
+    },
+    "./unified": {
+      "types": "./dist/unified.d.ts",
+      "import": "./dist/unified.js"
+    },
+    "./wasm": {
       "types": "./index.d.ts",
-      "node": "./node.mjs",
       "import": "./index.mjs",
-      "main": "./index.mjs",
       "browser": "./index.mjs"
+    },
+    "./native": {
+      "types": "./dist/native.d.ts",
+      "import": "./dist/native.js",
+      "node": "./dist/native.js"
     },
     "./package.json": "./package.json",
     "./sqlite3.wasm": "./sqlite-wasm/jswasm/sqlite3.wasm"
   },
   "bin": {
-    "sqlite-wasm": "bin/index.js"
+    "sqlite3-vec": "bin/index.js"
   },
   "scripts": {
     "publint": "npx publint",
     "check-types": "tsc",
     "clean": "shx rm -rf sqlite-wasm",
-    "build": "npm run clean && node bin/index.js",
-    "start": "npx http-server --coop",
-    "start:node": "cd demo && node node.mjs",
+    "build": "node bin/index.js && tsc -p tsconfig.json",
+    "test:e2e": "playwright test",
+    "build:tests:node": "tsc -p tsconfig.tests.json",
+    "test:node": "npm run build:tests:node && node --test dist-tests/**/*.js",
+    "build:native-ext": "bash scripts/build-sqlite-vec.sh",
+    "start": "npm run build && node tests/server.cjs",
+    "start:dev": "npm run build && node tests/server.cjs",
+    "start:node": "npm run build && node demo/node.mjs",
+    "start:node:native": "npm run build && node demo/node-native.mjs",
     "fix": "npx prettier . --write",
     "prepublishOnly": "npm run build && npm run fix && npm run publint && npm run check-types",
     "deploy": "npm run prepublishOnly && git add . && git commit -am 'New release' && git push && npm publish --access public"
   },
+  "postinstall": "node scripts/postinstall.cjs || true",
+  "optionalDependencies": {},
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sqlite/sqlite-wasm.git"
+    "url": "git+https://github.com/dao-xyz/sqlite-wasm-vec.git"
   },
   "author": "Thomas Steiner (tomac@google.com)",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/sqlite/sqlite-wasm/issues"
+    "url": "https://github.com/dao-xyz/sqlite-wasm-vec/issues"
   },
-  "homepage": "https://github.com/sqlite/sqlite-wasm#readme",
+  "homepage": "https://github.com/dao-xyz/sqlite-wasm-vec#readme",
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "decompress": "^4.2.1",
     "http-server": "github:vapier/http-server",
     "module-workers-polyfill": "^0.3.2",
@@ -68,5 +97,8 @@
     "publint": "^0.3.12",
     "shx": "^0.4.0",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "better-sqlite3": ">=12"
   }
 }

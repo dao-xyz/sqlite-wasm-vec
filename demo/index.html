@@ -1,19 +1,53 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>SQLite Wasm Demo</title>
-    <script type="module" src="script.js"></script>
-    <script type="module" src="wrapped-worker.js"></script>
-    <script type="module" src="main-thread.js"></script>
-  </head>
-  <body>
-    <h1>SQLite Wasm Demo</h1>
-    <h2>Wrapped Worker</h2>
-    <div class="worker-promiser"></div>
-    <h2>Worker</h2>
-    <div class="worker"></div>
-    <h2>Main thread</h2>
-    <div class="main-thread"></div>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SQLite-Wasm + sqlite-vec Demos</title>
+
+  <!-- --- Classic CRUD demos ------------------------------------ -->
+  <script type="module" src="./script.js"></script>
+  <script type="module" src="./wrapped-worker.js"></script>
+  <script type="module" src="./main-thread.js"></script>
+
+  <!-- --- Vector-search demos ----------------------------------- -->
+  <script type="module" src="./vector-main-thread.js"></script>
+<!--   <script type="module" src="./vector-worker.js"></script>
+  <script type="module" src="./vector-wrapped-worker.js"></script> -->
+
+  <!-- Optional: fallback for browsers without Worker `type:"module"` -->
+  <script type="module">
+    const supportsModuleWorkers = (() => {
+      let ok = false;
+      try {
+        new Worker('data:,""', { type: 'module', get type(){ ok = true }});
+      } catch {}      /* eslint-disable-line no-empty */
+      return ok;
+    })();
+    if (!supportsModuleWorkers) {
+      import('./module-workers-polyfill.min.js');
+    }
+  </script>
+
+  <style>
+    body{font-family:system-ui,ui-sans-serif,sans-serif;margin:2rem}
+    h2{margin-top:1.5rem}
+    .error{color:#c00}
+    pre{white-space:pre-wrap; margin:0}
+    .demo-block{border:1px solid #ddd;border-radius:.4rem;padding:.6rem;margin-bottom:1rem}
+  </style>
+</head>
+<body>
+  <h1>SQLite Wasm – Feature Demos</h1>
+
+  <!-- ---------- CLASSIC DEMOS ------------ -->
+  <h2>Wrapped Worker </h2>
+  <div class="demo-block worker-promiser"></div>
+
+  <h2>Worker</h2>
+  <div class="demo-block worker"></div>
+
+  <h2>Main thread</h2>
+  <div class="demo-block main-thread"></div>
+
+</body>
 </html>
