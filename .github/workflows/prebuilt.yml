@@ -119,10 +119,10 @@ jobs:
             VER=$(node -p "require('./package.json').version")
             echo "tag=v${VER#v}" >> $GITHUB_OUTPUT
           fi
-      - run: apk add build-base git python3 py3-setuptools --update-cache
+      - run: apk add build-base git python3 py3-setuptools bash gettext --update-cache
       - run: git clone --depth 1 https://github.com/asg017/sqlite-vec.git
       - run: |
-          set -eux; cd sqlite-vec; [ -x ./scripts/vendor.sh ] && ./scripts/vendor.sh || true; make loadable
+          set -eux; cd sqlite-vec; [ -f ./scripts/vendor.sh ] && bash ./scripts/vendor.sh || true; make loadable
       - name: Upload release asset (alpine x64)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -163,9 +163,9 @@ jobs:
         run: |
           docker run --rm -v $PWD:/w --entrypoint /bin/sh --platform linux/${{ matrix.arch }} node:20-alpine -c '
             set -eux;
-            apk add build-base git python3 py3-setuptools --update-cache;
+            apk add build-base git python3 py3-setuptools bash gettext --update-cache;
             cd /w; git clone --depth 1 https://github.com/asg017/sqlite-vec.git;
-            cd sqlite-vec; [ -x ./scripts/vendor.sh ] && ./scripts/vendor.sh || true; make loadable;
+            cd sqlite-vec; [ -f ./scripts/vendor.sh ] && bash ./scripts/vendor.sh || true; make loadable;
           '
       - name: Upload release asset (alpine arm)
         env:
