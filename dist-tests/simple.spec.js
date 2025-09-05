@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 // Import the built unified Node entry to test Node usage without bundlers.
 import { createDatabase } from '../dist/unified-node.js';

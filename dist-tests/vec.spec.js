@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { createDatabase, resolveNativeExtensionPath } from '../dist/unified-node.js';
 test('vec extension provides vec_version() when present', async () => {
