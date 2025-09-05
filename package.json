@@ -64,7 +64,7 @@
     "build": "node bin/index.js && tsc -p tsconfig.json",
     "test:e2e": "playwright test",
     "build:tests:node": "tsc -p tsconfig.tests.json",
-    "test:node": "npm run build:tests:node && node --test dist-tests/**/*.js",
+    "test:node": "npm run build:tests:node && node --test dist-tests/*.js",
     "build:native-ext": "bash scripts/build-sqlite-vec.sh",
     "start": "npm run build && node tests/server.cjs",
     "start:dev": "npm run build && node tests/server.cjs",
