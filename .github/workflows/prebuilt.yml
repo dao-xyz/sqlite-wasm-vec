@@ -129,6 +129,22 @@ jobs:
       - uses: actions/checkout@v4
       - run: apk add build-base git python3 py3-setuptools bash gettext curl unzip --update-cache
       - run: git clone --depth 1 https://github.com/asg017/sqlite-vec.git
+      - name: Patch sqlite-vec for Alpine (musl)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          pushd sqlite-vec
+          # Quiet broken unzip invocation in vendor.sh (harmless but noisy)
+          if [ -f scripts/vendor.sh ]; then
+            sed -i 's/^unzip -d$/# patched: remove empty unzip -d/' scripts/vendor.sh || true
+          fi
+          # Avoid redefining stdint types on musl which breaks compilation
+          sed -i \
+            -e 's/^typedef u_int8_t uint8_t;/\/\/ patched: skip musl typedef uint8_t/' \
+            -e 's/^typedef u_int16_t uint16_t;/\/\/ patched: skip musl typedef uint16_t/' \
+            -e 's/^typedef u_int64_t uint64_t;/\/\/ patched: skip musl typedef uint64_t/' \
+            sqlite-vec.c || true
+          popd
       - run: |
           set -eux; cd sqlite-vec; [ -f ./scripts/vendor.sh ] && bash ./scripts/vendor.sh || true; make loadable
       - name: Upload release asset (alpine x64)
@@ -164,7 +180,15 @@ jobs:
             set -eux;
             apk add build-base git python3 py3-setuptools bash gettext curl unzip --update-cache;
             cd /w; git clone --depth 1 https://github.com/asg017/sqlite-vec.git;
-            cd sqlite-vec; [ -f ./scripts/vendor.sh ] && bash ./scripts/vendor.sh || true; make loadable;
+            # Patch sqlite-vec for musl typedefs and vendor.sh
+            cd sqlite-vec;
+            if [ -f scripts/vendor.sh ]; then sed -i "s/^unzip -d$/# patched: remove empty unzip -d/" scripts/vendor.sh || true; fi;
+            sed -i \
+              -e "s/^typedef u_int8_t uint8_t;/\/\/ patched: skip musl typedef uint8_t/" \
+              -e "s/^typedef u_int16_t uint16_t;/\/\/ patched: skip musl typedef uint16_t/" \
+              -e "s/^typedef u_int64_t uint64_t;/\/\/ patched: skip musl typedef uint64_t/" \
+              sqlite-vec.c || true;
+            [ -f ./scripts/vendor.sh ] && bash ./scripts/vendor.sh || true; make loadable;
           '
       - name: Upload release asset (alpine arm)
         env:
