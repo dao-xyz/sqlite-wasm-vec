@@ -129,17 +129,33 @@ jobs:
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "${{ steps.find_art.outputs.artifact }}")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
           gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
-          # Verify asset is present on the release (retry to dodge eventual consistency)
+          # Verify asset is present on the release (tolerate eventual consistency)
           TAG='${{ needs.ensure-release.outputs.tag }}'
-          for i in {1..6}; do
+          DIRECT_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$NAME"
+          ok="false"
+          for i in $(seq 1 30); do
+            CODE=$(curl -sI "$DIRECT_URL" | awk 'NR==1{print $2}') || true
+            if [ "$CODE" = "200" ] || [ "$CODE" = "302" ]; then ok="true"; break; fi
+            # Also check the assets list as a fallback view
             NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-            if echo "$NAMES" | grep -Fqx "$NAME"; then
-              echo "Verified asset present: $NAME"; break
-            fi
-            echo "Asset $NAME not visible yet; retry $i/6"; sleep 5
+            if echo "$NAMES" | grep -Fqx "$NAME"; then ok="true"; break; fi
+            echo "Asset $NAME not visible yet (HTTP $CODE); retry $i/30"; sleep 10
           done
-          NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-          echo "$NAMES" | grep -Fqx "$NAME" || { echo "::error::Missing asset after upload: $NAME"; exit 1; }
+          if [ "$ok" != "true" ]; then
+            echo "Asset still missing; attempting re-upload of $NAME"
+            gh release upload "$TAG" "${{ steps.find_art.outputs.artifact }}#${NAME}" --clobber -R "$GITHUB_REPOSITORY" || true
+            # Final tries after re-upload
+            for i in $(seq 1 6); do
+              CODE=$(curl -sI "$DIRECT_URL" | awk 'NR==1{print $2}') || true
+              if [ "$CODE" = "200" ] || [ "$CODE" = "302" ]; then ok="true"; break; fi
+              echo "Post re-upload wait; retry $i/6"; sleep 10
+            done
+          fi
+          if [ "$ok" != "true" ]; then
+            echo "::error::Missing asset after upload attempts: $NAME ($DIRECT_URL)"; 
+            echo "Release assets:"; gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true
+            exit 1
+          fi
 
   prebuild-alpine:
     name: Prebuild on alpine
@@ -185,15 +201,16 @@ jobs:
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "$ART")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
           gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
-          # Verify asset exists
+          # Verify asset exists (HEAD the direct URL with retries)
           TAG='${{ needs.ensure-release.outputs.tag }}'
-          for i in 1 2 3 4 5 6; do
-            NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-            echo "$NAMES" | grep -Fqx "$NAME" && { echo "Verified $NAME"; break; }
-            echo "Waiting for $NAME to appear ($i/6)"; sleep 5
+          DIRECT_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$NAME"
+          ok=false
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            CODE=$(curl -sI "$DIRECT_URL" | awk 'NR==1{print $2}') || true
+            if [ "$CODE" = "200" ] || [ "$CODE" = "302" ]; then ok=true; break; fi
+            echo "Waiting for $NAME (HTTP $CODE) ($i/10)"; sleep 6
           done
-          NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-          echo "$NAMES" | grep -Fqx "$NAME" || { echo "::error::Missing asset after upload: $NAME"; exit 1; }
+          $ok || { echo "::error::Missing asset after upload: $NAME"; exit 1; }
 
   prebuild-alpine-arm:
     name: Prebuild on alpine (arm)
@@ -235,15 +252,16 @@ jobs:
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "$ART")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
           gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
-          # Verify asset exists
+          # Verify asset exists (HEAD the direct URL with retries)
           TAG='${{ needs.ensure-release.outputs.tag }}'
-          for i in 1 2 3 4 5 6; do
-            NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-            echo "$NAMES" | grep -Fqx "$NAME" && { echo "Verified $NAME"; break; }
-            echo "Waiting for $NAME to appear ($i/6)"; sleep 5
+          DIRECT_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$NAME"
+          ok=false
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            CODE=$(curl -sI "$DIRECT_URL" | awk 'NR==1{print $2}') || true
+            if [ "$CODE" = "200" ] || [ "$CODE" = "302" ]; then ok=true; break; fi
+            echo "Waiting for $NAME (HTTP $CODE) ($i/10)"; sleep 6
           done
-          NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-          echo "$NAMES" | grep -Fqx "$NAME" || { echo "::error::Missing asset after upload: $NAME"; exit 1; }
+          $ok || { echo "::error::Missing asset after upload: $NAME"; exit 1; }
 
   prebuild-linux-arm:
     name: Prebuild on Linux (arm64)
@@ -272,14 +290,15 @@ jobs:
           HASH=$(node -e "const fs=require('fs');const c=require('crypto');const d=fs.readFileSync(process.argv[1]);process.stdout.write(c.createHash('sha256').update(d).digest('hex'));" "$ART")
           printf "%s  %s" "$HASH" "$NAME" > "$NAME.sha256"
           gh release upload "${{ needs.ensure-release.outputs.tag }}" "$NAME.sha256" --clobber -R "$GITHUB_REPOSITORY"
-          # Verify asset exists
+          # Verify asset exists (HEAD the direct URL with retries)
           TAG='${{ needs.ensure-release.outputs.tag }}'
-          for i in 1 2 3 4 5 6; do
-            NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-            echo "$NAMES" | grep -Fqx "$NAME" && { echo "Verified $NAME"; break; }
-            echo "Waiting for $NAME to appear ($i/6)"; sleep 5
+          DIRECT_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$NAME"
+          ok=false
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            CODE=$(curl -sI "$DIRECT_URL" | awk 'NR==1{print $2}') || true
+            if [ "$CODE" = "200" ] || [ "$CODE" = "302" ]; then ok=true; break; fi
+            echo "Waiting for $NAME (HTTP $CODE) ($i/10)"; sleep 6
           done
-          NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
-          echo "$NAMES" | grep -Fqx "$NAME" || { echo "::error::Missing asset after upload: $NAME"; exit 1; }
+          $ok || { echo "::error::Missing asset after upload: $NAME"; exit 1; }
 permissions:
   contents: write
