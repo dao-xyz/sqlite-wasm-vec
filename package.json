@@ -26,7 +26,10 @@
     "index.mjs",
     "dist/",
     "src/",
-    "sqlite-wasm/"
+    "sqlite-wasm/",
+    "scripts/postinstall.cjs",
+    "scripts/fetch-prebuilt.cjs",
+    "scripts/build-sqlite-vec.sh"
   ],
   "types": "dist/unified.d.ts",
   "exports": {
