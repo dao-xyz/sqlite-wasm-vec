@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 export interface InitNativeOptions {
   database?: string;
@@ -35,9 +36,14 @@ function libExt(): string {
   return 'so';
 }
 
+function packageRootDir(): string {
+  // dist/node-entry.js -> package root
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, '..');
+}
+
 function findLocalPrebuilt(): string | undefined {
-  const root = process.cwd();
-  const outDir = path.join(root, 'dist', 'native');
+  const outDir = path.join(packageRootDir(), 'dist', 'native');
   if (!fs.existsSync(outDir)) return undefined;
   const ext = libExt();
   const triple = platformTriple();
