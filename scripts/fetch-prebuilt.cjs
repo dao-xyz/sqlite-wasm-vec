@@ -75,7 +75,8 @@ async function download(url, dest) {
 async function main() {
   const triple = platformTriple();
   const ext = fileExt();
-  const version = pkg.version.startsWith('v') ? pkg.version : `v${pkg.version}`;
+  const verWithV = pkg.version.startsWith('v') ? pkg.version : `v${pkg.version}`;
+  const verNoV = verWithV.replace(/^v/, '');
   const resolved = repoFromPackage();
   const candidates = Array.from(
     new Set([
@@ -93,12 +94,14 @@ async function main() {
   console.log(`[sqlite3-vec] Version: ${version}`);
   let lastErr;
   for (const repo of candidates) {
-    const base = `https://github.com/${repo}/releases/download/${version}`;
-    const url = `${base}/${asset}`;
-    const sumUrl = `${base}/${asset}.sha256`;
     console.log(`[sqlite3-vec] Trying repo: ${repo}`);
-    try {
-      await download(url, dest);
+    for (const tag of [verWithV, verNoV]) {
+      const base = `https://github.com/${repo}/releases/download/${tag}`;
+      const url = `${base}/${asset}`;
+      const sumUrl = `${base}/${asset}.sha256`;
+      console.log(`[sqlite3-vec] Trying tag: ${tag}`);
+      try {
+        await download(url, dest);
       console.log('[sqlite3-vec] Downloaded:', dest);
       try {
         await download(sumUrl, sumDest);
@@ -113,9 +116,10 @@ async function main() {
         console.warn('[sqlite3-vec] Checksum not verified:', e?.message || String(e));
       }
       process.exit(0);
-    } catch (e) {
-      lastErr = e;
-      console.warn(`[sqlite3-vec] Download failed from ${repo}:`, e?.message || String(e));
+      } catch (e) {
+        lastErr = e;
+        console.warn(`[sqlite3-vec] Download failed from ${repo} tag ${tag}:`, e?.message || String(e));
+      }
     }
   }
   console.warn('[sqlite3-vec] All download attempts failed. Tried repos:', candidates.join(', '));
