@@ -1,8 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export interface InitNativeOptions { database?: string; loadExtension?: string | false }
-export interface InitNativeResult { db: any; Database: any; version: { libVersion: string; vecVersion?: string } }
+export interface InitNativeOptions {
+  database?: string;
+  loadExtension?: string | false;
+}
+export interface InitNativeResult {
+  db: any;
+  Database: any;
+  version: { libVersion: string; vecVersion?: string };
+}
 
 function detectLibc(): 'gnu' | 'musl' {
   try {
@@ -38,11 +45,15 @@ function findLocalPrebuilt(): string | undefined {
   const entries: string[] = fs.readdirSync(outDir);
   const exact = entries.find((f: string) => f === preferred);
   if (exact) return path.join(outDir, exact);
-  const any = entries.find((f: string) => /sqlite-vec.*\.(so|dylib|dll)$/i.test(f));
+  const any = entries.find((f: string) =>
+    /sqlite-vec.*\.(so|dylib|dll)$/i.test(f),
+  );
   return any ? path.join(outDir, any) : undefined;
 }
 
-export async function initNative(options: InitNativeOptions = {}): Promise<InitNativeResult> {
+export async function initNative(
+  options: InitNativeOptions = {},
+): Promise<InitNativeResult> {
   const { database = ':memory:', loadExtension } = options;
   const mod = await import('better-sqlite3');
   const Database: any = (mod as any).default || mod;
@@ -59,17 +70,23 @@ export async function initNative(options: InitNativeOptions = {}): Promise<InitN
       } else if (typeof db.loadExtensionAsync === 'function') {
         await db.loadExtensionAsync(extPath);
       } else {
-        throw new Error('Extension loading not supported by this better-sqlite3 build');
+        throw new Error(
+          'Extension loading not supported by this better-sqlite3 build',
+        );
       }
     } catch (e: any) {
-      const err = new Error(`Failed to load sqlite-vec extension from: ${extPath}\n${e?.message || e}`);
+      const err = new Error(
+        `Failed to load sqlite-vec extension from: ${extPath}\n${e?.message || e}`,
+      );
       (err as any).cause = e;
       throw err;
     }
   }
   const libVersion = String(db.prepare('select sqlite_version() as v').get().v);
   let vecVersion: string | undefined;
-  try { vecVersion = db.prepare('select vec_version() as v').get().v; } catch {}
+  try {
+    vecVersion = db.prepare('select vec_version() as v').get().v;
+  } catch {}
   return { db, Database, version: { libVersion, vecVersion } };
 }
 

@@ -53,7 +53,11 @@ async function download(url, dest) {
   await fs.promises.mkdir(path.dirname(dest), { recursive: true });
   return new Promise((resolve, reject) => {
     const req = https.get(url, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      if (
+        res.statusCode >= 300 &&
+        res.statusCode < 400 &&
+        res.headers.location
+      ) {
         // redirect
         return download(res.headers.location, dest).then(resolve, reject);
       }
@@ -95,11 +99,17 @@ async function main() {
       if (expected && expected !== actual) throw new Error('Checksum mismatch');
       console.log('[sqlite3-vec] Checksum OK');
     } catch (e) {
-      console.warn('[sqlite3-vec] Checksum not verified:', e && e.message ? e.message : String(e));
+      console.warn(
+        '[sqlite3-vec] Checksum not verified:',
+        e && e.message ? e.message : String(e),
+      );
     }
     process.exit(0);
   } catch (e) {
-    console.warn('[sqlite3-vec] Download failed:', e && e.message ? e.message : String(e));
+    console.warn(
+      '[sqlite3-vec] Download failed:',
+      e && e.message ? e.message : String(e),
+    );
     process.exit(1);
   }
 }

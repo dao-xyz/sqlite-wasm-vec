@@ -1,10 +1,16 @@
 // Node native demo using unified Node API
-import { createDatabase, resolveNativeExtensionPath } from '../dist/unified-node.js';
+import {
+  createDatabase,
+  resolveNativeExtensionPath,
+} from '../dist/unified-node.js';
 
 console.log('Starting Node demo (native)...');
 const db = await createDatabase({ database: 'demo-native.db' });
 await db.open();
-console.log('Resolved native extension:', resolveNativeExtensionPath() || '(none)');
+console.log(
+  'Resolved native extension:',
+  resolveNativeExtensionPath() || '(none)',
+);
 
 try {
   await db.exec('CREATE TABLE IF NOT EXISTS t(a,b)');

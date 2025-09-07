@@ -7,7 +7,7 @@ const config = {
   reporter: 'list',
   use: {
     headless: true,
-  }, 
+  },
   webServer: {
     command: 'node ./tests/run-webserver.cjs',
     port: 4321,

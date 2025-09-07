@@ -15,6 +15,8 @@ const child = spawn(process.execPath, ['tests/server.cjs'], {
 });
 
 child.on('exit', (code, signal) => {
-  console.log(`[e2e] web server exited with code=${code} signal=${signal || ''}`);
+  console.log(
+    `[e2e] web server exited with code=${code} signal=${signal || ''}`,
+  );
   process.exit(code || 0);
 });

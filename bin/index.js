@@ -29,15 +29,19 @@ if (fs.existsSync(sqliteRepoDir)) {
        make -j8 \
           EXTRA_SRC="sqlite-vec.c" \
           EXTRA_CFLAGS="-DSQLITE_VEC_STATIC -DSQLITE_VEC_OMIT_FS"`,
-      { stdio: 'inherit' }
+      { stdio: 'inherit' },
     );
   } catch (e) {
     console.warn(
       'Build from ../sqlite failed or is not permitted in this environment.\n',
-      String(e && e.message ? e.message : e)
+      String(e && e.message ? e.message : e),
     );
     if (hasValidPayload(destDir)) {
-      console.log('Falling back to existing prebuilt payload at', destDir, '✅');
+      console.log(
+        'Falling back to existing prebuilt payload at',
+        destDir,
+        '✅',
+      );
       process.exit(0);
     }
     console.error('No prebuilt payload to fall back to.');
@@ -65,7 +69,7 @@ if (fs.existsSync(sqliteRepoDir)) {
     console.log(
       'No ../sqlite repo. Using existing prebuilt payload at',
       destDir,
-      '✅'
+      '✅',
     );
   } else {
     console.error(
@@ -73,7 +77,7 @@ if (fs.existsSync(sqliteRepoDir)) {
       destDir,
       '\nPlease either: \n' +
         '  - Clone and prepare ../sqlite with sqlite-vec, then run `npm run build`, or\n' +
-        '  - Add a prebuilt jswasm payload to sqlite-wasm/jswasm.'
+        '  - Add a prebuilt jswasm payload to sqlite-wasm/jswasm.',
     );
     process.exit(1);
   }

@@ -52,7 +52,12 @@ const server = http.createServer((req, res) => {
 });
 
 server.on('error', (err) => {
-  console.error('[server] listen error on', host, port, String(err && err.message || err));
+  console.error(
+    '[server] listen error on',
+    host,
+    port,
+    String((err && err.message) || err),
+  );
   if (host !== '0.0.0.0') {
     console.log('[server] falling back to 0.0.0.0');
     server.listen(port, '0.0.0.0', () => {

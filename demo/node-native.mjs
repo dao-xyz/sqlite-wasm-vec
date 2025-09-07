@@ -8,7 +8,8 @@ const localDist = path.join(process.cwd(), 'dist', 'native');
 const pickLocalExt = () => {
   if (!fs.existsSync(localDist)) return undefined;
   for (const f of fs.readdirSync(localDist)) {
-    if (/sqlite-vec.*\.(dylib|so|dll)$/i.test(f)) return path.join(localDist, f);
+    if (/sqlite-vec.*\.(dylib|so|dll)$/i.test(f))
+      return path.join(localDist, f);
   }
   return undefined;
 };
@@ -20,7 +21,12 @@ const { db, version } = await initNative({
   loadExtension,
 });
 
-console.log('SQLite', version.libVersion, '| sqlite-vec', version.vecVersion || '(not loaded)');
+console.log(
+  'SQLite',
+  version.libVersion,
+  '| sqlite-vec',
+  version.vecVersion || '(not loaded)',
+);
 db.exec('CREATE TABLE IF NOT EXISTS t (a,b)');
 db.prepare('INSERT INTO t(a,b) VALUES (?,?)').run(1, 2);
 console.log('Row:', db.prepare('SELECT a,b FROM t LIMIT 1').get());

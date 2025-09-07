@@ -1,0 +1,69 @@
+name: npm-publish
+
+on:
+  release:
+    types: [published]
+  workflow_run:
+    workflows: ["prebuilt"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+      - name: Resolve version/tag
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG='${{ github.event.release.tag_name }}'
+          else
+            VER=$(node -p "require('./package.json').version")
+            TAG="v${VER#v}"
+          fi
+          VER_NO_V="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "ver=$VER_NO_V" >> $GITHUB_OUTPUT
+          echo "Resolved tag: $TAG"
+      - name: Skip if already published on npm
+        id: npmcheck
+        shell: bash
+        run: |
+          set -e
+          WANT='${{ steps.ver.outputs.ver }}'
+          CUR=$(npm view @dao-xyz/sqlite3-vec version || true)
+          echo "npm current: $CUR, desired: $WANT"
+          if [ "$CUR" = "$WANT" ]; then echo "published=true" >> $GITHUB_OUTPUT; else echo "published=false" >> $GITHUB_OUTPUT; fi
+      - name: Wait for prebuilt assets (if needed)
+        if: ${{ github.event_name == 'release' && steps.npmcheck.outputs.published == 'false' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          TAG='${{ steps.ver.outputs.tag }}'
+          echo "Waiting for prebuilt assets on $TAG ..."
+          for i in {1..40}; do
+            NAMES=$(gh release view "$TAG" --json assets -q '.assets[].name' -R "$GITHUB_REPOSITORY" || true)
+            if echo "$NAMES" | grep -q '^sqlite-vec-'; then
+              echo "Found assets:"; echo "$NAMES"; break
+            fi
+            echo "No assets yet; sleeping 15s ($i/40)"; sleep 15
+          done
+      - name: Install deps
+        if: ${{ steps.npmcheck.outputs.published == 'false' }}
+        run: npm ci
+      - name: Publish to npm
+        if: ${{ steps.npmcheck.outputs.published == 'false' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Prepublish checks/build are handled by the package's prepublishOnly
+          npm publish --access public

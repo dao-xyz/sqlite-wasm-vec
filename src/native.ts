@@ -1,1 +1,5 @@
-export { initNative as default, initNative, initWasmNode } from './node-entry.js';
+export {
+  initNative as default,
+  initNative,
+  initWasmNode,
+} from './node-entry.js';

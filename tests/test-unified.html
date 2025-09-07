@@ -2,24 +2,25 @@
 <meta charset="utf-8" />
 <title>sqlite3-vec unified test</title>
 <body>
-<script type="module">
-  import { createDatabase } from '/dist/unified-browser.js';
-  const body = document.body;
-  try {
-    const db = await createDatabase({ mode: 'wasm', directory: '/tmp' });
-    await db.open();
-    await db.exec('CREATE VIRTUAL TABLE v USING vec0(vector float[3])');
-    const stmt = await db.prepare('INSERT INTO v(rowid,vector) VALUES(?1,?2)');
-    const toVec = () => new Float32Array([
-      Math.random(), Math.random(), Math.random()
-    ]);
-    for (let i=1;i<=3;i++) stmt.run([i, toVec().buffer]);
-    const q = await db.prepare('SELECT count(*) as n FROM v');
-    const res = q.get({});
-    if (res && res.n === 3) body.setAttribute('data-unified', 'ok');
-    await db.close();
-  } catch (e) {
-    body.setAttribute('data-error', e && e.message ? e.message : String(e));
-  }
-</script>
+  <script type="module">
+    import { createDatabase } from '/dist/unified-browser.js';
+    const body = document.body;
+    try {
+      const db = await createDatabase({ mode: 'wasm', directory: '/tmp' });
+      await db.open();
+      await db.exec('CREATE VIRTUAL TABLE v USING vec0(vector float[3])');
+      const stmt = await db.prepare(
+        'INSERT INTO v(rowid,vector) VALUES(?1,?2)',
+      );
+      const toVec = () =>
+        new Float32Array([Math.random(), Math.random(), Math.random()]);
+      for (let i = 1; i <= 3; i++) stmt.run([i, toVec().buffer]);
+      const q = await db.prepare('SELECT count(*) as n FROM v');
+      const res = q.get({});
+      if (res && res.n === 3) body.setAttribute('data-unified', 'ok');
+      await db.close();
+    } catch (e) {
+      body.setAttribute('data-error', e && e.message ? e.message : String(e));
+    }
+  </script>
 </body>

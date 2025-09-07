@@ -6,15 +6,19 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to upload assets to (e.g., v3.51.0-build1). Leave blank to use package.json"
+        description:
+          'Release tag to upload assets to (e.g., v3.51.0-build1). Leave blank
+          to use package.json'
         required: false
   workflow_run:
-    workflows: ["create-release"]
+    workflows: ['create-release']
     types: [completed]
 
 jobs:
   ensure-release:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if:
+      ${{ github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.ver.outputs.tag }}
@@ -55,19 +59,21 @@ jobs:
         exclude:
           # Avoid duplicate uploads and unsupported combos
           - os: ubuntu-22.04
-            arch: arm64    # built in prebuild-linux-arm
+            arch: arm64 # built in prebuild-linux-arm
           - os: macos-13
-            arch: arm64    # macOS 13 runner is x64
+            arch: arm64 # macOS 13 runner is x64
           - os: macos-14
-            arch: x64      # macOS 14 runner is arm64
+            arch: x64 # macOS 14 runner is arm64
           - os: windows-2022
-            arch: arm64    # no Windows arm64 runner
+            arch: arm64 # no Windows arm64 runner
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain (Linux)
         if: startsWith(matrix.os, 'ubuntu')
-        run: sudo apt-get update && sudo apt-get install -y build-essential git make
+        run:
+          sudo apt-get update && sudo apt-get install -y build-essential git
+          make
       - name: Install toolchain (macOS)
         if: startsWith(matrix.os, 'macos')
         run: echo 'Using Xcode toolchain'
@@ -131,7 +137,9 @@ jobs:
     container: node:20-alpine
     steps:
       - uses: actions/checkout@v4
-      - run: apk add build-base git python3 py3-setuptools bash gettext curl unzip github-cli --update-cache
+      - run:
+          apk add build-base git python3 py3-setuptools bash gettext curl unzip
+          github-cli --update-cache
       - run: git clone --depth 1 https://github.com/asg017/sqlite-vec.git
       - name: Patch sqlite-vec for Alpine (musl)
         shell: bash
