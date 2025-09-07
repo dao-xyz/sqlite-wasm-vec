@@ -91,7 +91,7 @@ async function main() {
   const sumDest = `${dest}.sha256`;
 
   console.log(`[sqlite3-vec] Fetching prebuilt: ${asset}`);
-  console.log(`[sqlite3-vec] Version: ${version}`);
+  console.log(`[sqlite3-vec] Version: ${pkg.version}`);
   let lastErr;
   for (const repo of candidates) {
     console.log(`[sqlite3-vec] Trying repo: ${repo}`);
