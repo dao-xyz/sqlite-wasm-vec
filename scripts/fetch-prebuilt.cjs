@@ -76,42 +76,51 @@ async function main() {
   const triple = platformTriple();
   const ext = fileExt();
   const version = pkg.version.startsWith('v') ? pkg.version : `v${pkg.version}`;
-  const repo = repoFromPackage();
+  const resolved = repoFromPackage();
+  const candidates = Array.from(
+    new Set([
+      process.env.SQLITE3_VEC_REPO,
+      resolved,
+      'dao-xyz/sqlite3-vec', // new canonical repo name
+      'dao-xyz/sqlite-wasm-vec', // legacy fallback
+    ].filter(Boolean)),
+  );
   const asset = `sqlite-vec-${triple}.${ext}`;
-  const base = `https://github.com/${repo}/releases/download/${version}`;
-  const url = `${base}/${asset}`;
-  const sumUrl = `${base}/${asset}.sha256`;
   const dest = path.join(root, 'dist', 'native', asset);
   const sumDest = `${dest}.sha256`;
 
   console.log(`[sqlite3-vec] Fetching prebuilt: ${asset}`);
-  try {
-    await download(url, dest);
-    console.log('[sqlite3-vec] Downloaded:', dest);
-    // Try checksum verify if available
+  console.log(`[sqlite3-vec] Version: ${version}`);
+  let lastErr;
+  for (const repo of candidates) {
+    const base = `https://github.com/${repo}/releases/download/${version}`;
+    const url = `${base}/${asset}`;
+    const sumUrl = `${base}/${asset}.sha256`;
+    console.log(`[sqlite3-vec] Trying repo: ${repo}`);
     try {
-      await download(sumUrl, sumDest);
-      const data = fs.readFileSync(dest);
-      const sumLine = fs.readFileSync(sumDest, 'utf8').trim();
-      const expected = (sumLine.split(/\s+/)[0] || '').toLowerCase();
-      const crypto = require('crypto');
-      const actual = crypto.createHash('sha256').update(data).digest('hex');
-      if (expected && expected !== actual) throw new Error('Checksum mismatch');
-      console.log('[sqlite3-vec] Checksum OK');
+      await download(url, dest);
+      console.log('[sqlite3-vec] Downloaded:', dest);
+      try {
+        await download(sumUrl, sumDest);
+        const data = fs.readFileSync(dest);
+        const sumLine = fs.readFileSync(sumDest, 'utf8').trim();
+        const expected = (sumLine.split(/\s+/)[0] || '').toLowerCase();
+        const crypto = require('crypto');
+        const actual = crypto.createHash('sha256').update(data).digest('hex');
+        if (expected && expected !== actual) throw new Error('Checksum mismatch');
+        console.log('[sqlite3-vec] Checksum OK');
+      } catch (e) {
+        console.warn('[sqlite3-vec] Checksum not verified:', e?.message || String(e));
+      }
+      process.exit(0);
     } catch (e) {
-      console.warn(
-        '[sqlite3-vec] Checksum not verified:',
-        e && e.message ? e.message : String(e),
-      );
+      lastErr = e;
+      console.warn(`[sqlite3-vec] Download failed from ${repo}:`, e?.message || String(e));
     }
-    process.exit(0);
-  } catch (e) {
-    console.warn(
-      '[sqlite3-vec] Download failed:',
-      e && e.message ? e.message : String(e),
-    );
-    process.exit(1);
   }
+  console.warn('[sqlite3-vec] All download attempts failed. Tried repos:', candidates.join(', '));
+  console.warn('[sqlite3-vec] You can override repo via SQLITE3_VEC_REPO=owner/repo');
+  process.exit(1);
 }
 
 main();

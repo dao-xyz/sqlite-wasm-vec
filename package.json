@@ -81,14 +81,14 @@
   "optionalDependencies": {},
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dao-xyz/sqlite-wasm-vec.git"
+    "url": "git+https://github.com/dao-xyz/sqlite3-vec.git"
   },
   "author": "Thomas Steiner (tomac@google.com)",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/dao-xyz/sqlite-wasm-vec/issues"
+    "url": "https://github.com/dao-xyz/sqlite3-vec/issues"
   },
-  "homepage": "https://github.com/dao-xyz/sqlite-wasm-vec#readme",
+  "homepage": "https://github.com/dao-xyz/sqlite3-vec#readme",
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "@types/node": "^20.16.11",
