@@ -78,6 +78,13 @@ export async function createDatabase(
   };
   const normVals = (values?: any[] | undefined): any[] | undefined =>
     values ? values.map((x) => toBuffer(x)) : values;
+  const normObj = (obj: any): any => {
+    if (!obj || typeof obj !== 'object') return obj;
+    const out: any = Array.isArray(obj) ? [] : {};
+    if (Array.isArray(obj)) return normVals(obj);
+    for (const k of Object.keys(obj)) out[k] = toBuffer(obj[k]);
+    return out;
+  };
 
   const wrapStmt = (stmt: any): Statement => {
     let bound: any[] | undefined = undefined;
@@ -88,17 +95,26 @@ export async function createDatabase(
       },
       finalize() {},
       get(values?: any[]) {
-        return stmt.get(normVals(values ?? bound));
+        const v = (values ?? bound) as any;
+        if (Array.isArray(v)) return stmt.get(...(normVals(v) ?? []));
+        if (v == null) return stmt.get();
+        return stmt.get(normObj(v));
       },
       run(values: any[]) {
-        stmt.run(normVals(values ?? bound));
+        const v = (values ?? bound) as any;
+        if (Array.isArray(v)) stmt.run(...(normVals(v) ?? []));
+        else if (v == null) stmt.run();
+        else stmt.run(normObj(v));
         bound = undefined;
       },
       async reset() {
         return this;
       },
       all(values: any[]) {
-        return stmt.all(normVals(values ?? bound));
+        const v = (values ?? bound) as any;
+        if (Array.isArray(v)) return stmt.all(...(normVals(v) ?? []));
+        if (v == null) return stmt.all();
+        return stmt.all(normObj(v));
       },
       step() {
         return false;
