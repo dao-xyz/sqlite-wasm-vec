@@ -74,10 +74,10 @@
     "start:node": "npm run build && node demo/node.mjs",
     "start:node:native": "npm run build && node demo/node-native.mjs",
     "fix": "npx prettier . --write",
+    "postinstall": "node scripts/postinstall.cjs || true",
     "prepublishOnly": "npm run build && node scripts/verify-wasm.cjs && npm run fix && npm run publint && npm run check-types",
     "deploy": "npm run prepublishOnly && git add . && git commit -am 'New release' && git push && npm publish --access public"
   },
-  "postinstall": "node scripts/postinstall.cjs || true",
   "optionalDependencies": {},
   "repository": {
     "type": "git",
