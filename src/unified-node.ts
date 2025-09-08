@@ -25,6 +25,10 @@ export async function createDatabase(
   let db: any;
   const statements = new Map<string, Statement>();
   const dbFileName = database;
+  const DEBUG = process.env.SQLITE3_VEC_DEBUG === '1';
+  const dlog = (...args: any[]) => {
+    if (DEBUG) console.log('[sqlite3-vec][node]', ...args);
+  };
 
   const open = () => {
     if (db && db.open) return db;
@@ -37,7 +41,8 @@ export async function createDatabase(
     } catch {}
     const extPath = loadExtension || resolveNativeExtensionPath();
     if (extPath) {
-      loadVecExtension(db, extPath, process.env.SQLITE3_VEC_DEBUG === '1');
+      dlog('loading vec extension from', extPath);
+      loadVecExtension(db, extPath, DEBUG);
     }
     return db;
   };
@@ -76,6 +81,24 @@ export async function createDatabase(
     }
     return v;
   };
+  const summarize = (v: any): any => {
+    if (v == null) return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return v;
+    if (typeof v === 'string') return `string(len=${v.length})`;
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer?.(v)) return `Buffer(${v.byteLength})`;
+    if (v instanceof ArrayBuffer) return `ArrayBuffer(${v.byteLength})`;
+    if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView?.(v)) {
+      const ctor = (v as any).constructor?.name || 'TypedArray';
+      const len = (v as any).length ?? (v.byteLength ?? '?');
+      return `${ctor}(${len})`;
+    }
+    if (typeof v === 'object') {
+      const out: Record<string, any> = {};
+      for (const k of Object.keys(v)) out[k] = summarize((v as any)[k]);
+      return out;
+    }
+    return typeof v;
+  };
   const normVals = (values?: any[] | undefined): any[] | undefined =>
     values ? values.map((x) => toBuffer(x)) : values;
   const normObj = (obj: any): any => {
@@ -99,6 +122,7 @@ export async function createDatabase(
   };
   const callWithParams = (stmt: any, method: Method, v: any) => {
     const params = mapParams(v);
+  if (DEBUG) dlog(`stmt.${method}()`, { params: summarize(params) });
     if (params === undefined) return stmt[method]();
     // Deterministic: bind first, then call without inline params.
     stmt.bind(params);
@@ -140,10 +164,12 @@ export async function createDatabase(
     close,
     drop,
     exec(sql: string) {
-      return open().exec(sql);
+  if (DEBUG) dlog('exec', sql);
+  return open().exec(sql);
     },
     async prepare(sql: string, id?: string) {
       open();
+  if (DEBUG) dlog('prepare', { id, sql });
       if (id != null && statements.has(id)) {
         const prev = statements.get(id)!;
         await (prev.reset?.() as any);

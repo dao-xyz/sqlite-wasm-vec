@@ -15,13 +15,22 @@ test('vec0 create/insert/query works (native ext present)', async () => {
 
   const toVec = () => new Float32Array([Math.random(), Math.random(), Math.random()]);
   const ins = await db.prepare('INSERT INTO v(rowid,vector) VALUES(?1,?2)');
-  for (let i = 1; i <= 4; i++) ins.run([i, toVec().buffer]);
+  for (let i = 1; i <= 4; i++) {
+    const vec = toVec();
+    if (process.env.SQLITE3_VEC_DEBUG === '1') {
+      console.log('[test][insert]', { rowid: i, vector: `Float32Array(${vec.length})` });
+    }
+    ins.run([i, vec.buffer]);
+  }
 
   const probe = toVec();
   const q = await db.prepare(
     'SELECT rowid, vec_distance_l2(vector, ?1) AS d FROM v ORDER BY d LIMIT 2',
   );
   const rows = q.all([probe.buffer]);
+  if (process.env.SQLITE3_VEC_DEBUG === '1') {
+    console.log('[test][query]', { probe: `Float32Array(${probe.length})`, rows });
+  }
   assert.ok(Array.isArray(rows) && rows.length === 2);
   assert.ok(typeof rows[0].d === 'number');
   await db.close();
