@@ -10,6 +10,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const root = process.cwd();
 const pkg = require(path.join(root, 'package.json'));
@@ -29,7 +30,13 @@ function detectLibc() {
 }
 
 function platformTriple() {
-  const { platform, arch } = process;
+  // Allow explicit overrides for debugging or special environments
+  const forceTriple = process.env.SQLITE3_VEC_TRIPLE;
+  if (forceTriple) return forceTriple;
+  const forcePlatform = process.env.SQLITE3_VEC_PLATFORM;
+  const forceArch = process.env.SQLITE3_VEC_ARCH;
+  const platform = (forcePlatform || process.platform);
+  const arch = (forceArch || process.arch);
   if (platform === 'darwin') return `darwin-${arch}`;
   if (platform === 'win32') return `win32-${arch}`;
   if (platform === 'linux') return `linux-${arch}-${detectLibc()}`;
@@ -37,6 +44,8 @@ function platformTriple() {
 }
 
 function fileExt() {
+  const forceExt = process.env.SQLITE3_VEC_EXT;
+  if (forceExt) return forceExt;
   if (process.platform === 'darwin') return 'dylib';
   if (process.platform === 'win32') return 'dll';
   return 'so';
@@ -75,6 +84,20 @@ async function download(url, dest) {
 async function main() {
   const triple = platformTriple();
   const ext = fileExt();
+  // Helpful diagnostics
+  const diag = {
+    platform: process.platform,
+    arch: process.arch,
+    osRelease: os.release?.() || undefined,
+    force: {
+      triple: process.env.SQLITE3_VEC_TRIPLE || undefined,
+      platform: process.env.SQLITE3_VEC_PLATFORM || undefined,
+      arch: process.env.SQLITE3_VEC_ARCH || undefined,
+      ext: process.env.SQLITE3_VEC_EXT || undefined,
+    },
+    resolved: { triple, ext },
+  };
+  console.log('[sqlite3-vec] Platform detection:', JSON.stringify(diag));
   const verWithV = pkg.version.startsWith('v') ? pkg.version : `v${pkg.version}`;
   const verNoV = verWithV.replace(/^v/, '');
   const resolved = repoFromPackage();
