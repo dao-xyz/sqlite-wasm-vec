@@ -1,54 +1,9 @@
 // Node-only unified entry which uses better-sqlite3 and auto-loads the sqlite-vec extension.
 import type { Database, Statement } from './unified';
 import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import { resolveNativeExtensionPath as resolveExtPath, loadVecExtension } from './native-extension.js';
 
-function detectLibc(): 'gnu' | 'musl' {
-  try {
-    if (process.platform !== 'linux') return 'gnu';
-    const r: any = (process as any).report?.getReport?.();
-    if (r?.header?.glibcVersionRuntime) return 'gnu';
-  } catch {}
-  return 'gnu';
-}
-
-function platformTriple(): string {
-  const { platform, arch } = process;
-  if (platform === 'darwin') return `darwin-${arch}`;
-  if (platform === 'win32') return `win32-${arch}`;
-  if (platform === 'linux') return `linux-${arch}-${detectLibc()}`;
-  return `${platform}-${arch}`;
-}
-
-function libExt(): string {
-  return process.platform === 'darwin'
-    ? 'dylib'
-    : process.platform === 'win32'
-      ? 'dll'
-      : 'so';
-}
-
-function packageRootDir(): string {
-  // dist/unified-node.js -> package root
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, '..');
-}
-
-function findLocalPrebuilt(): string | undefined {
-  const outDir = path.join(packageRootDir(), 'dist', 'native');
-  if (!fs.existsSync(outDir)) return undefined;
-  const ext = libExt();
-  const triple = platformTriple();
-  const preferred = `sqlite-vec-${triple}.${ext}`;
-  const entries: string[] = fs.readdirSync(outDir);
-  const exact = entries.find((f: string) => f === preferred);
-  if (exact) return path.join(outDir, exact);
-  const any = entries.find((f: string) =>
-    /sqlite-vec.*\.(so|dylib|dll)$/i.test(f),
-  );
-  return any ? path.join(outDir, any) : undefined;
-}
+// platform resolution and prebuilt discovery live in native-extension.ts
 
 export interface CreateOptionsNode {
   database?: string;
@@ -57,7 +12,7 @@ export interface CreateOptionsNode {
 
 /** Returns the resolved path to a local prebuilt sqlite-vec extension, if any. */
 export function resolveNativeExtensionPath(): string | undefined {
-  return findLocalPrebuilt();
+  return resolveExtPath();
 }
 
 import Better from 'better-sqlite3';
@@ -82,11 +37,7 @@ export async function createDatabase(
     } catch {}
     const extPath = loadExtension || resolveNativeExtensionPath();
     if (extPath) {
-      if (process.env.SQLITE3_VEC_DEBUG === '1')
-        console.log('[sqlite3-vec] Loading native extension from', extPath);
-      if (typeof db.loadExtension === 'function') db.loadExtension(extPath);
-      else if (typeof db.loadExtensionAsync === 'function')
-        db.loadExtensionAsync(extPath);
+      loadVecExtension(db, extPath, process.env.SQLITE3_VEC_DEBUG === '1');
     }
     return db;
   };

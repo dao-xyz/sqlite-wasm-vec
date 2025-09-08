@@ -171,6 +171,28 @@ console.log(q.all([probe.buffer]));
 await db.close();
 ```
 
+Node quick example (import by package name, vec0):
+
+```js
+// node.mjs (ESM)
+import { createDatabase, resolveNativeExtensionPath } from '@dao-xyz/sqlite3-vec';
+
+const db = await createDatabase({ /* optionally: loadExtension: '/abs/path/sqlite-vec-<triple>.<ext>' */ });
+await db.open();
+console.log('native ext:', resolveNativeExtensionPath() || '(none)');
+
+// vec0 table
+await db.exec('CREATE VIRTUAL TABLE IF NOT EXISTS v USING vec0(vector float[3])');
+const toVec = () => new Float32Array([Math.random(), Math.random(), Math.random()]);
+const ins = await db.prepare('INSERT INTO v(rowid,vector) VALUES(?1,?2)');
+for (let i = 1; i <= 4; i++) ins.run([i, toVec().buffer]);
+
+const probe = toVec();
+const q = await db.prepare('SELECT rowid, vec_distance_l2(vector, ?1) AS d FROM v ORDER BY d LIMIT 2');
+console.log('top-2:', q.all([probe.buffer]));
+await db.close();
+```
+
 Options:
 
 - `mode`: `'auto' | 'native' | 'wasm'` (default `'auto'`).
@@ -254,6 +276,12 @@ Debugging:
 - Set `SQLITE3_VEC_DEBUG=1` to log which native extension path is used during
   `initNative()`.
 
+Resolution details:
+
+- The native extension is auto-discovered relative to the installed package’s
+  `dist/native/` directory (not the app’s cwd). You can override by passing
+  `loadExtension` to `createDatabase({ loadExtension })`.
+
 Optional: automatic native build on install (opt-in)
 
 ```bash
@@ -313,6 +341,20 @@ while (q.step()) console.log(q.get());
 q.finalize();
 db.close();
 ```
+
+### Troubleshooting native extension (Node)
+
+- Error: `undefined symbol: sqlite3_<something>_init`
+  - The loader now tries standard entry points in order: `sqlite3_extension_init`,
+    `sqlite3_sqlitevec_init`, `sqlite3_vec_init`, then falls back to the
+    filename-derived default. Set `SQLITE3_VEC_DEBUG=1` to see what was tried.
+  - Ensure the binary under this package’s `dist/native/` matches your platform
+    triple (e.g., `linux-x64-gnu`, `linux-arm64-musl`, `darwin-arm64`, ...).
+  - You can explicitly provide a path via `createDatabase({ loadExtension: '/abs/path/sqlite-vec-<triple>.<ext>' })`.
+
+- Vectors binding in Node
+  - You can pass `ArrayBuffer`/TypedArray buffers and they’ll be converted to
+    Node `Buffer` automatically for BLOB columns. Example: `ins.run([id, float32.buffer])`.
 
 ## Installation
 
