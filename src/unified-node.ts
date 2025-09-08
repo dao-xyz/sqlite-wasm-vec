@@ -98,16 +98,16 @@ export async function createDatabase(
     // Object-shaped → pass as named params
     if (!Array.isArray(v)) return stmt[method](normObj(v));
     const arr = normVals(v) ?? [];
-    // Try varargs first
+    // Prefer numeric object first to support ?1,?2 placeholders consistently.
     try {
-      return stmt[method](...arr);
-    } catch (e: any) {
-      // Fallback: array semantics
+      return stmt[method](toNumericParamObj(arr as any));
+    } catch (eNum: any) {
+      // Fallback: varargs (best for '?' placeholders)
       try {
+        return stmt[method](...arr);
+      } catch (eVar: any) {
+        // Final fallback: array semantics
         return stmt[method](arr as any);
-      } catch (e2: any) {
-        // Final fallback: numeric object for ?1,?2,... placeholders
-        return stmt[method](toNumericParamObj(arr as any));
       }
     }
   };
