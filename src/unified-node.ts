@@ -92,25 +92,24 @@ export async function createDatabase(
   };
 
   type Method = 'run' | 'get' | 'all';
+  const mapParams = (v: any): any | undefined => {
+    if (v == null) return undefined;
+    if (Array.isArray(v)) return toNumericParamObj(normVals(v) ?? []);
+    return normObj(v);
+  };
   const callWithParams = (stmt: any, method: Method, v: any) => {
-    // null/undefined → no-arg
-    if (v == null) return stmt[method]();
-    // Object-shaped → pass as named params
-    if (!Array.isArray(v)) return stmt[method](normObj(v));
-    const arr = normVals(v) ?? [];
-    // Prefer varargs for consistent positional mapping; then try numeric-object for ?1/?2.
-    try {
-      return stmt[method](...arr);
-    } catch (eVar: any) {
-      return stmt[method](toNumericParamObj(arr as any));
-    }
+    const params = mapParams(v);
+    if (params === undefined) return stmt[method]();
+    // Deterministic: bind first, then call without inline params.
+    stmt.bind(params);
+    return stmt[method]();
   };
 
   const wrapStmt = (stmt: any): Statement => {
     let bound: any[] | undefined = undefined;
   return {
       bind(values: any[]) {
-        bound = values;
+  bound = values;
         return this;
       },
       finalize() {},
