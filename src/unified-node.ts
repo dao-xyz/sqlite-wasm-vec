@@ -115,21 +115,57 @@ export async function createDatabase(
   };
 
   type Method = 'run' | 'get' | 'all';
+  type ParamStyle = 'positional' | 'named' | 'none';
+  type PositionalKind = 'numeric' | 'anonymous' | undefined;
+  interface SqlMeta {
+    style: ParamStyle;
+    positionalKind?: PositionalKind;
+    paramCount: number;
+  }
+
+  const analyzeSql = (sql: string): SqlMeta => {
+    // Very lightweight analysis; sufficient for our test/usage.
+    const namedRe = /[:@$][A-Za-z_][A-Za-z0-9_]*/g;
+    const numericRe = /\?(\d+)/g;
+    const anonRe = /\?(?!\d)/g;
+    const hasNamed = namedRe.test(sql);
+    if (hasNamed) return { style: 'named', paramCount: 0 };
+    let maxIndex = 0;
+    let m: RegExpExecArray | null;
+    numericRe.lastIndex = 0;
+    while ((m = numericRe.exec(sql))) {
+      const idx = parseInt(m[1]!, 10);
+      if (idx > maxIndex) maxIndex = idx;
+    }
+    if (maxIndex > 0) return { style: 'positional', positionalKind: 'numeric', paramCount: maxIndex };
+    // Count anonymous ? occurrences
+    const qs = sql.match(anonRe)?.length ?? 0;
+    if (qs > 0) return { style: 'positional', positionalKind: 'anonymous', paramCount: qs };
+    return { style: 'none', paramCount: 0 };
+  };
+
   const mapParams = (v: any): any | undefined => {
     if (v == null) return undefined;
     if (Array.isArray(v)) return toNumericParamObj(normVals(v) ?? []);
     return normObj(v);
   };
-  const callWithParams = (stmt: any, method: Method, v: any) => {
+  const callWithParams = (stmt: any, method: Method, v: any, meta: SqlMeta) => {
     const params = mapParams(v);
-  if (DEBUG) dlog(`stmt.${method}()`, { params: summarize(params) });
+    if (DEBUG) dlog(`stmt.${method}()`, { params: summarize(params), meta });
+    // Prefer varargs for positional placeholders to avoid CI differences.
+    if (Array.isArray(v) && meta.style === 'positional') {
+      const a = normVals(v) ?? [];
+      const toUse = meta.paramCount > 0 && a.length > meta.paramCount ? a.slice(0, meta.paramCount) : a;
+      if (a.length > toUse.length && DEBUG) dlog('slicing extra params for positional binding', { have: a.length, use: toUse.length });
+      return stmt[method](...toUse);
+    }
+    // Fallback: deterministic bind-first with (possibly named) object.
     if (params === undefined) return stmt[method]();
-    // Deterministic: bind first, then call without inline params.
     stmt.bind(params);
     return stmt[method]();
   };
 
-  const wrapStmt = (stmt: any): Statement => {
+  const wrapStmt = (stmt: any, meta: SqlMeta): Statement => {
     let bound: any[] | undefined = undefined;
   return {
       bind(values: any[]) {
@@ -139,11 +175,11 @@ export async function createDatabase(
       finalize() {},
       get(values?: any[]) {
     const v = (values ?? bound) as any;
-    return callWithParams(stmt, 'get', v);
+    return callWithParams(stmt, 'get', v, meta);
       },
       run(values: any[]) {
     const v = (values ?? bound) as any;
-    callWithParams(stmt, 'run', v);
+    callWithParams(stmt, 'run', v, meta);
         bound = undefined;
       },
       async reset() {
@@ -151,7 +187,7 @@ export async function createDatabase(
       },
       all(values: any[]) {
     const v = (values ?? bound) as any;
-    return callWithParams(stmt, 'all', v);
+    return callWithParams(stmt, 'all', v, meta);
       },
       step() {
         return false;
@@ -175,8 +211,9 @@ export async function createDatabase(
         await (prev.reset?.() as any);
         return prev;
       }
-      const stmt = open().prepare(sql);
-      const wrapped = wrapStmt(stmt);
+  const meta = analyzeSql(sql);
+  const stmt = open().prepare(sql);
+  const wrapped = wrapStmt(stmt, meta);
       if (id != null) statements.set(id, wrapped);
       return wrapped;
     },
