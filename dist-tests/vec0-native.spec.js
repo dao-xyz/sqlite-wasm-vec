@@ -1,0 +1,28 @@
+import { test } from 'node:test';
+import * as assert from 'node:assert/strict';
+import {
+  createDatabase,
+  resolveNativeExtensionPath,
+} from '../dist/unified-node.js';
+
+test('vec0 create/insert/query works (native ext present)', async () => {
+  const extPath = resolveNativeExtensionPath();
+  if (!extPath) return; // skip if no native ext available
+
+  const db = await createDatabase({});
+  await db.open();
+  await db.exec('CREATE VIRTUAL TABLE IF NOT EXISTS v USING vec0(vector float[3])');
+
+  const toVec = () => new Float32Array([Math.random(), Math.random(), Math.random()]);
+  const ins = await db.prepare('INSERT INTO v(rowid,vector) VALUES(?1,?2)');
+  for (let i = 1; i <= 4; i++) ins.run([i, toVec().buffer]);
+
+  const probe = toVec();
+  const q = await db.prepare(
+    'SELECT rowid, vec_distance_l2(vector, ?1) AS d FROM v ORDER BY d LIMIT 2',
+  );
+  const rows = q.all([probe.buffer]);
+  assert.ok(Array.isArray(rows) && rows.length === 2);
+  assert.ok(typeof rows[0].d === 'number');
+  await db.close();
+});

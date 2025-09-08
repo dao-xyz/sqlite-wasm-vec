@@ -2,6 +2,7 @@
 import type { Database, Statement } from './unified';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 function detectLibc(): 'gnu' | 'musl' {
   try {
@@ -28,9 +29,14 @@ function libExt(): string {
       : 'so';
 }
 
+function packageRootDir(): string {
+  // dist/unified-node.js -> package root
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, '..');
+}
+
 function findLocalPrebuilt(): string | undefined {
-  const root = process.cwd();
-  const outDir = path.join(root, 'dist', 'native');
+  const outDir = path.join(packageRootDir(), 'dist', 'native');
   if (!fs.existsSync(outDir)) return undefined;
   const ext = libExt();
   const triple = platformTriple();
@@ -107,6 +113,21 @@ export async function createDatabase(
     }
   };
 
+  const toBuffer = (v: any): any => {
+    if (!v) return v;
+    // Convert ArrayBuffer/TypedArray/DataView to Node Buffer for better-sqlite3 BLOB binding
+    if (typeof ArrayBuffer !== 'undefined') {
+      if (v instanceof ArrayBuffer) return Buffer.from(new Uint8Array(v));
+      if (ArrayBuffer.isView?.(v)) {
+        const u8 = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+        return Buffer.from(u8);
+      }
+    }
+    return v;
+  };
+  const normVals = (values?: any[] | undefined): any[] | undefined =>
+    values ? values.map((x) => toBuffer(x)) : values;
+
   const wrapStmt = (stmt: any): Statement => {
     let bound: any[] | undefined = undefined;
     return {
@@ -116,17 +137,17 @@ export async function createDatabase(
       },
       finalize() {},
       get(values?: any[]) {
-        return stmt.get(values ?? bound);
+        return stmt.get(normVals(values ?? bound));
       },
       run(values: any[]) {
-        stmt.run(values ?? bound);
+        stmt.run(normVals(values ?? bound));
         bound = undefined;
       },
       async reset() {
         return this;
       },
       all(values: any[]) {
-        return stmt.all(values ?? bound);
+        return stmt.all(normVals(values ?? bound));
       },
       step() {
         return false;
