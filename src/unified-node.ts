@@ -85,36 +85,56 @@ export async function createDatabase(
     for (const k of Object.keys(obj)) out[k] = toBuffer(obj[k]);
     return out;
   };
+  const toNumericParamObj = (arr: any[]): Record<string, any> => {
+    const o: Record<string, any> = {};
+    for (let i = 0; i < arr.length; i++) o[String(i + 1)] = arr[i];
+    return normObj(o);
+  };
+
+  type Method = 'run' | 'get' | 'all';
+  const callWithParams = (stmt: any, method: Method, v: any) => {
+    // null/undefined → no-arg
+    if (v == null) return stmt[method]();
+    // Object-shaped → pass as named params
+    if (!Array.isArray(v)) return stmt[method](normObj(v));
+    const arr = normVals(v) ?? [];
+    // Try varargs first
+    try {
+      return stmt[method](...arr);
+    } catch (e: any) {
+      // Fallback: array semantics
+      try {
+        return stmt[method](arr as any);
+      } catch (e2: any) {
+        // Final fallback: numeric object for ?1,?2,... placeholders
+        return stmt[method](toNumericParamObj(arr as any));
+      }
+    }
+  };
 
   const wrapStmt = (stmt: any): Statement => {
     let bound: any[] | undefined = undefined;
-    return {
+  return {
       bind(values: any[]) {
         bound = values;
         return this;
       },
       finalize() {},
       get(values?: any[]) {
-        const v = (values ?? bound) as any;
-        if (Array.isArray(v)) return stmt.get(...(normVals(v) ?? []));
-        if (v == null) return stmt.get();
-        return stmt.get(normObj(v));
+    const v = (values ?? bound) as any;
+    return callWithParams(stmt, 'get', v);
       },
       run(values: any[]) {
-        const v = (values ?? bound) as any;
-        if (Array.isArray(v)) stmt.run(...(normVals(v) ?? []));
-        else if (v == null) stmt.run();
-        else stmt.run(normObj(v));
+    const v = (values ?? bound) as any;
+    callWithParams(stmt, 'run', v);
         bound = undefined;
       },
       async reset() {
         return this;
       },
       all(values: any[]) {
-        const v = (values ?? bound) as any;
-        if (Array.isArray(v)) return stmt.all(...(normVals(v) ?? []));
-        if (v == null) return stmt.all();
-        return stmt.all(normObj(v));
+    const v = (values ?? bound) as any;
+    return callWithParams(stmt, 'all', v);
       },
       step() {
         return false;
