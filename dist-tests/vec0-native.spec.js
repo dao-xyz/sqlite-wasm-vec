@@ -20,7 +20,8 @@ test('vec0 create/insert/query works (native ext present)', async () => {
     if (process.env.SQLITE3_VEC_DEBUG === '1') {
       console.log('[test][insert]', { rowid: i, vector: `Float32Array(${vec.length})` });
     }
-    ins.run([i, vec.buffer]);
+    // Use BigInt for rowid to ensure SQLITE_INTEGER binding across environments
+    ins.run([BigInt(i), vec.buffer]);
   }
 
   const probe = toVec();
